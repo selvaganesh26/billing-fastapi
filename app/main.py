@@ -7,7 +7,7 @@ import logging
 from app.db.database import init_db
 from app.core.config import get_settings
 from app.core.exceptions import BillingException
-from app.routers import product_router, purchase_router, denomination_router
+from app.routers import product_router, purchase_router, denomination_router, ui_router
 
 # Configure logging
 logging.basicConfig(
@@ -68,7 +68,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Health check
-@app.get("/", tags=["Health"])
+@app.get("/health", tags=["Health"])
 def health_check():
     """Health check endpoint"""
     return {
@@ -79,6 +79,7 @@ def health_check():
 
 
 # Include routers
+app.include_router(ui_router.router)  # UI routes (no prefix)
 app.include_router(product_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(purchase_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(denomination_router.router, prefix=settings.API_V1_PREFIX)

@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Dict
 from decimal import Decimal
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from app.models.customer import Customer
 from app.models.product import Product
@@ -17,9 +19,11 @@ from app.core.exceptions import (
     InsufficientDenominationException
 )
 from app.utils.denomination_calculator import calculate_change_denominations
+from app.services.email_service import EmailService
 import logging
 
 logger = logging.getLogger(__name__)
+executor = ThreadPoolExecutor(max_workers=2)
 
 
 class BillingService:
@@ -87,6 +91,9 @@ class BillingService:
             # Commit transaction
             self.db.commit()
             self.db.refresh(purchase)
+            
+            # Step 9: Send email asynchronously (non-blocking)
+            executor.submit(self._send_invoice_email, customer.email, purchase)
             
             logger.info(f"Purchase {purchase.id} created successfully for customer {customer.email}")
             return purchase
@@ -215,3 +222,36 @@ class BillingService:
             denom.available_count -= count
             
         logger.info(f"Change of {change_amount} given using denominations: {change_breakdown}")
+    
+    def _send_invoice_email(self, customer_email: str, purchase: Purchase):
+        """Send invoice email asynchronously"""
+        try:
+            email_service = EmailService()
+            purchase_data = {
+                'id': purchase.id,
+                'total_amount': purchase.total_amount,
+                'tax_amount': purchase.tax_amount,
+                'final_amount': purchase.final_amount,
+                'paid_amount': purchase.paid_amount,
+                'balance_amount': purchase.balance_amount,
+                'created_at': str(purchase.created_at),
+                'purchase_items': [
+                    {
+                        'product_id': item.product_id,
+                        'unit_price_snapshot': item.unit_price_snapshot,
+                        'quantity': item.quantity,
+                        'tax_percent_snapshot': item.tax_percent_snapshot,
+                        'tax_amount': item.tax_amount,
+                        'total_price': item.total_price
+                    } for item in purchase.purchase_items
+                ],
+                'change_denominations': [
+                    {
+                        'denomination_value': d.denomination_value,
+                        'count_given': d.count_given
+                    } for d in purchase.purchase_denominations
+                ]
+            }
+            email_service.send_invoice_email(customer_email, purchase_data)
+        except Exception as e:
+            logger.error(f"Failed to send email: {str(e)}")

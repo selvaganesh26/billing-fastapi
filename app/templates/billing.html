@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { text-align: center; margin-bottom: 30px; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .bill-section { border: 2px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .product-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; margin-bottom: 10px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #4CAF50; color: white; }
+        .btn-secondary { background: #666; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .denominations { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0; }
+        .denom-item { display: flex; align-items: center; gap: 10px; }
+        .denom-item label { margin: 0; min-width: 50px; }
+        .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .separator { border-top: 2px solid #ddd; margin: 20px 0; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 4px; display: none; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .invoice-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .invoice-table th { background: #f0f0f0; }
+        .totals { text-align: right; margin: 20px 0; }
+        .totals p { margin: 5px 0; }
+        .history-link { text-align: center; margin-top: 20px; }
+        .history-link a { color: #4CAF50; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Billing System</h1>
+        
+        <div class="form-group">
+            <label>Customer Email</label>
+            <input type="email" id="customerEmail" placeholder="customer@example.com" required>
+        </div>
+
+        <div class="bill-section">
+            <h3>Bill Section</h3>
+            <div id="productRows">
+                <div class="product-row">
+                    <input type="number" placeholder="Product ID" class="product-id" min="1">
+                    <input type="number" placeholder="Quantity" class="quantity" min="1">
+                    <button class="btn btn-danger" onclick="removeRow(this)">Remove</button>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="addProductRow()" style="margin-top: 10px;">Add New</button>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="form-group">
+            <h3>Denominations</h3>
+            <div class="denominations">
+                <div class="denom-item"><label>500:</label><input type="number" id="denom500" value="0" min="0"></div>
+                <div class="denom-item"><label>50:</label><input type="number" id="denom50" value="0" min="0"></div>
+                <div class="denom-item"><label>20:</label><input type="number" id="denom20" value="0" min="0"></div>
+                <div class="denom-item"><label>10:</label><input type="number" id="denom10" value="0" min="0"></div>
+                <div class="denom-item"><label>5:</label><input type="number" id="denom5" value="0" min="0"></div>
+                <div class="denom-item"><label>2:</label><input type="number" id="denom2" value="0" min="0"></div>
+                <div class="denom-item"><label>1:</label><input type="number" id="denom1" value="0" min="0"></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Cash Paid by Customer</label>
+            <input type="number" id="paidAmount" placeholder="Amount" min="0" step="0.01">
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="resetForm()">Cancel</button>
+            <button class="btn btn-primary" onclick="generateBill()">Generate Bill</button>
+        </div>
+
+        <div id="result"></div>
+
+        <div class="history-link">
+            <a href="/purchases">View Purchase History</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api/v1';
+
+        function addProductRow() {
+            const container = document.getElementById('productRows');
+            const row = document.createElement('div');
+            row.className = 'product-row';
+            row.innerHTML = `
+                <input type="number" placeholder="Product ID" class="product-id" min="1">
+                <input type="number" placeholder="Quantity" class="quantity" min="1">
+                <button class="btn btn-danger" onclick="removeRow(this)">Remove</button>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeRow(btn) {
+            const rows = document.querySelectorAll('.product-row');
+            if (rows.length > 1) {
+                btn.parentElement.remove();
+            } else {
+                alert('At least one product row is required');
+            }
+        }
+
+        async function setupDenominations() {
+            const denoms = [500, 50, 20, 10, 5, 2, 1];
+            for (const value of denoms) {
+                try {
+                    await fetch(`${API_BASE}/denominations`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({value, available_count: 100})
+                    });
+                } catch (e) {}
+            }
+        }
+
+        async function generateBill() {
+            const email = document.getElementById('customerEmail').value;
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value);
+            
+            if (!email || !paidAmount) {
+                showResult('Please fill all required fields', 'error');
+                return;
+            }
+
+            const rows = document.querySelectorAll('.product-row');
+            const items = [];
+            
+            for (const row of rows) {
+                const productId = parseInt(row.querySelector('.product-id').value);
+                const quantity = parseInt(row.querySelector('.quantity').value);
+                if (productId && quantity) {
+                    items.push({product_id: productId, quantity});
+                }
+            }
+
+            if (items.length === 0) {
+                showResult('Please add at least one product', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/purchases`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        customer_email: email,
+                        items,
+                        paid_amount: paidAmount
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayInvoice(data);
+                } else {
+                    showResult(`Error: ${data.detail || data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function displayInvoice(data) {
+            let itemsHtml = '';
+            data.purchase_items.forEach(item => {
+                const purchasePrice = item.unit_price_snapshot * item.quantity;
+                itemsHtml += `
+                    <tr>
+                        <td>${item.product_id}</td>
+                        <td>₹${item.unit_price_snapshot.toFixed(2)}</td>
+                        <td>${item.quantity}</td>
+                        <td>₹${purchasePrice.toFixed(2)}</td>
+                        <td>${item.tax_percent_snapshot}%</td>
+                        <td>₹${item.tax_amount.toFixed(2)}</td>
+                        <td>₹${item.total_price.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            let denomHtml = '';
+            if (data.change_denominations && data.change_denominations.length > 0) {
+                denomHtml = '<h4>Balance Denomination:</h4><ul>';
+                data.change_denominations.forEach(d => {
+                    denomHtml += `<li>${d.denomination_value}: ${d.count_given}</li>`;
+                });
+                denomHtml += '</ul>';
+            }
+
+            const html = `
+                <h3>Invoice #${data.id}</h3>
+                <p><strong>Customer Email:</strong> ${document.getElementById('customerEmail').value}</p>
+                
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Product ID</th>
+                            <th>Unit Price</th>
+                            <th>Quantity</th>
+                            <th>Purchase Price</th>
+                            <th>Tax %</th>
+                            <th>Tax Amount</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+
+                <div class="totals">
+                    <p><strong>Total price without tax:</strong> ₹${data.total_amount.toFixed(2)}</p>
+                    <p><strong>Total tax payable:</strong> ₹${data.tax_amount.toFixed(2)}</p>
+                    <p><strong>Net price:</strong> ₹${data.final_amount.toFixed(2)}</p>
+                    <p><strong>Paid amount:</strong> ₹${data.paid_amount.toFixed(2)}</p>
+                    <p><strong>Balance payable to customer:</strong> ₹${data.balance_amount.toFixed(2)}</p>
+                </div>
+
+                ${denomHtml}
+
+                <p style="color: green; margin-top: 20px;"><strong>✓ Invoice sent to customer email!</strong></p>
+            `;
+
+            showResult(html, 'success');
+        }
+
+        function showResult(message, type) {
+            const result = document.getElementById('result');
+            result.innerHTML = message;
+            result.className = type;
+            result.style.display = 'block';
+        }
+
+        function resetForm() {
+            document.getElementById('customerEmail').value = '';
+            document.getElementById('paidAmount').value = '';
+            document.querySelectorAll('.product-id, .quantity').forEach(input => input.value = '');
+            document.getElementById('result').style.display = 'none';
+        }
+
+        // Setup denominations on load
+        window.onload = () => setupDenominations();
+    </script>
+</body>
+</html>

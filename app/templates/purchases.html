@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase History</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { text-align: center; margin-bottom: 30px; color: #333; }
+        .back-link { text-align: center; margin-bottom: 20px; }
+        .back-link a { color: #4CAF50; text-decoration: none; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background: #4CAF50; color: white; }
+        tr:hover { background: #f5f5f5; cursor: pointer; }
+        .details { display: none; padding: 20px; background: #f9f9f9; margin: 10px 0; border-radius: 4px; }
+        .details table { margin-top: 10px; }
+        .details th { background: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Purchase History</h1>
+        <div class="back-link">
+            <a href="/">← Back to Billing</a>
+        </div>
+
+        <table id="purchaseTable">
+            <thead>
+                <tr>
+                    <th>Purchase ID</th>
+                    <th>Customer ID</th>
+                    <th>Final Amount</th>
+                    <th>Paid Amount</th>
+                    <th>Balance</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody id="purchaseBody"></tbody>
+        </table>
+
+        <div id="purchaseDetails"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api/v1';
+
+        async function loadPurchases() {
+            try {
+                const response = await fetch(`${API_BASE}/purchases`);
+                const purchases = await response.json();
+                
+                const tbody = document.getElementById('purchaseBody');
+                tbody.innerHTML = '';
+
+                purchases.forEach(purchase => {
+                    const row = tbody.insertRow();
+                    row.onclick = () => showDetails(purchase.id);
+                    row.innerHTML = `
+                        <td>${purchase.id}</td>
+                        <td>${purchase.customer_id}</td>
+                        <td>₹${purchase.final_amount.toFixed(2)}</td>
+                        <td>₹${purchase.paid_amount.toFixed(2)}</td>
+                        <td>₹${purchase.balance_amount.toFixed(2)}</td>
+                        <td>${new Date(purchase.created_at).toLocaleString()}</td>
+                    `;
+                });
+            } catch (error) {
+                alert('Error loading purchases: ' + error.message);
+            }
+        }
+
+        async function showDetails(purchaseId) {
+            try {
+                const response = await fetch(`${API_BASE}/purchases/${purchaseId}`);
+                const purchase = await response.json();
+                
+                let itemsHtml = '';
+                purchase.purchase_items.forEach(item => {
+                    itemsHtml += `
+                        <tr>
+                            <td>${item.product_id}</td>
+                            <td>₹${item.unit_price_snapshot.toFixed(2)}</td>
+                            <td>${item.quantity}</td>
+                            <td>${item.tax_percent_snapshot}%</td>
+                            <td>₹${item.tax_amount.toFixed(2)}</td>
+                            <td>₹${item.total_price.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+
+                const detailsDiv = document.getElementById('purchaseDetails');
+                detailsDiv.innerHTML = `
+                    <div class="details" style="display: block;">
+                        <h3>Purchase #${purchase.id} Details</h3>
+                        <p><strong>Total Amount:</strong> ₹${purchase.total_amount.toFixed(2)}</p>
+                        <p><strong>Tax Amount:</strong> ₹${purchase.tax_amount.toFixed(2)}</p>
+                        <p><strong>Final Amount:</strong> ₹${purchase.final_amount.toFixed(2)}</p>
+                        
+                        <h4>Items Purchased:</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product ID</th>
+                                    <th>Unit Price</th>
+                                    <th>Quantity</th>
+                                    <th>Tax %</th>
+                                    <th>Tax Amount</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>${itemsHtml}</tbody>
+                        </table>
+                    </div>
+                `;
+            } catch (error) {
+                alert('Error loading details: ' + error.message);
+            }
+        }
+
+        window.onload = loadPurchases;
+    </script>
+</body>
+</html>
