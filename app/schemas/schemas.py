@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 
 
@@ -108,7 +108,7 @@ class PurchaseResponse(BaseModel):
     paid_amount: float
     balance_amount: float
     created_at: datetime
-    purchase_items: List[PurchaseItemResponse]
+    purchase_items: List[PurchaseItemResponse] = []
     change_denominations: List[PurchaseDenominationResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
@@ -116,7 +116,7 @@ class PurchaseResponse(BaseModel):
 
 # Pagination
 class PaginatedResponse(BaseModel):
-    items: List[dict]
+    items: List[Any]
     total: int
     page: int
     page_size: int

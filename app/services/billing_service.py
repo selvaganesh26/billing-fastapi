@@ -184,7 +184,7 @@ class BillingService:
             self.db.add(purchase_item)
     
     def _update_product_stock(self, products_data: List[Dict]):
-        """Update product inventory (CRITICAL - never forget this)"""
+        """Update product inventory"""
         for data in products_data:
             product = data['product']
             quantity = data['quantity']
