@@ -226,7 +226,7 @@ class BillingService:
     def _send_invoice_email(self, customer_email: str, purchase: Purchase):
         """Send invoice email asynchronously"""
         try:
-            email_service = EmailService()
+            # Prepare data before session closes
             purchase_data = {
                 'id': purchase.id,
                 'total_amount': purchase.total_amount,
@@ -252,6 +252,8 @@ class BillingService:
                     } for d in purchase.purchase_denominations
                 ]
             }
+            
+            email_service = EmailService()
             email_service.send_invoice_email(customer_email, purchase_data)
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")

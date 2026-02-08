@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     
     DATABASE_URL: str
     
+    # Email settings
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SENDER_EMAIL: str = ""
+    SENDER_PASSWORD: str = ""
+    
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
     

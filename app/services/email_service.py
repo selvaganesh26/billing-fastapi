@@ -3,30 +3,32 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, List
 import logging
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 class EmailService:
     """Simple email service for sending invoices"""
     
-    def __init__(self, smtp_host: str = "smtp.gmail.com", smtp_port: int = 587):
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
+    def __init__(self):
+        self.smtp_host = settings.SMTP_HOST
+        self.smtp_port = settings.SMTP_PORT
+        self.sender_email = settings.SENDER_EMAIL
+        self.sender_password = settings.SENDER_PASSWORD
     
     def send_invoice_email(
         self,
         to_email: str,
-        purchase_data: Dict,
-        sender_email: str = "billing@example.com",
-        sender_password: str = ""
+        purchase_data: Dict
     ):
         """Send invoice email to customer"""
         try:
             # Create email
             msg = MIMEMultipart('alternative')
             msg['Subject'] = f"Invoice #{purchase_data['id']} - Billing System"
-            msg['From'] = sender_email
+            msg['From'] = self.sender_email
             msg['To'] = to_email
             
             # Create HTML content
@@ -34,11 +36,11 @@ class EmailService:
             html_part = MIMEText(html_content, 'html')
             msg.attach(html_part)
             
-            # Send email (commented out for demo - requires SMTP credentials)
-            # with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-            #     server.starttls()
-            #     server.login(sender_email, sender_password)
-            #     server.send_message(msg)
+            # Send email
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.sender_email, self.sender_password)
+                server.send_message(msg)
             
             logger.info(f"Invoice email sent to {to_email} for purchase #{purchase_data['id']}")
             return True
