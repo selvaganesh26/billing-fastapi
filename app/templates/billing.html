@@ -135,6 +135,22 @@
                 return;
             }
 
+            // Calculate denomination total
+            const denomTotal = 
+                parseInt(document.getElementById('denom500').value || 0) * 500 +
+                parseInt(document.getElementById('denom50').value || 0) * 50 +
+                parseInt(document.getElementById('denom20').value || 0) * 20 +
+                parseInt(document.getElementById('denom10').value || 0) * 10 +
+                parseInt(document.getElementById('denom5').value || 0) * 5 +
+                parseInt(document.getElementById('denom2').value || 0) * 2 +
+                parseInt(document.getElementById('denom1').value || 0) * 1;
+
+            // Validate denomination total matches cash paid
+            if (denomTotal !== paidAmount) {
+                showResult(`Denomination total (₹${denomTotal}) must match Cash Paid (₹${paidAmount})`, 'error');
+                return;
+            }
+
             const rows = document.querySelectorAll('.product-row');
             const items = [];
             
