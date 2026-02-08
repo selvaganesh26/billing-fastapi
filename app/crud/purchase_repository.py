@@ -39,10 +39,16 @@ class PurchaseRepository:
     
     def get_by_customer_email(self, email: str, skip: int = 0, limit: int = 100) -> List[Purchase]:
         """Get purchases by customer email"""
+        from app.models.customer import Customer
         return (
             self.db.query(Purchase)
-            .join(Purchase.customer)
-            .filter(Purchase.customer.has(email=email))
+            .join(Customer, Purchase.customer_id == Customer.id)
+            .filter(Customer.email == email)
+            .options(
+                joinedload(Purchase.customer),
+                joinedload(Purchase.purchase_items),
+                joinedload(Purchase.purchase_denominations)
+            )
             .order_by(Purchase.created_at.desc())
             .offset(skip)
             .limit(limit)

@@ -48,12 +48,15 @@ def create_purchase(purchase: PurchaseCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[PurchaseResponse])
 def get_purchases(
+    customer_email: str = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Get all purchases with pagination"""
+    """Get all purchases with optional customer email filter and pagination"""
     repo = PurchaseRepository(db)
+    if customer_email:
+        return repo.get_by_customer_email(customer_email, skip=skip, limit=limit)
     return repo.get_all(skip=skip, limit=limit)
 
 

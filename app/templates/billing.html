@@ -44,6 +44,12 @@
         <div class="form-group">
             <label>Customer Email</label>
             <input type="email" id="customerEmail" placeholder="customer@example.com" required>
+            <button class="btn btn-secondary" onclick="loadCustomerPurchases()" style="margin-top: 10px;">View Previous Purchases</button>
+        </div>
+
+        <div id="previousPurchases" style="display: none; margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+            <h3>Previous Purchases</h3>
+            <div id="purchasesList"></div>
         </div>
 
         <div class="bill-section">
@@ -299,6 +305,110 @@
             } else {
                 document.getElementById('netTotal').style.display = 'none';
             }
+        }
+
+        async function loadCustomerPurchases() {
+            const email = document.getElementById('customerEmail').value;
+            if (!email) {
+                alert('Please enter customer email');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/purchases?customer_email=${encodeURIComponent(email)}`);
+                if (response.ok) {
+                    const purchases = await response.json();
+                    displayPreviousPurchases(purchases);
+                } else {
+                    document.getElementById('previousPurchases').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading purchases:', error);
+            }
+        }
+
+        function displayPreviousPurchases(purchases) {
+            const container = document.getElementById('purchasesList');
+            
+            if (purchases.length === 0) {
+                container.innerHTML = '<p>No previous purchases found.</p>';
+                document.getElementById('previousPurchases').style.display = 'block';
+                return;
+            }
+
+            let html = '<table class="invoice-table"><thead><tr><th>Invoice #</th><th>Date</th><th>Total</th><th>Action</th></tr></thead><tbody>';
+            
+            purchases.forEach(purchase => {
+                const date = new Date(purchase.created_at).toLocaleDateString();
+                html += `
+                    <tr>
+                        <td>#${purchase.id}</td>
+                        <td>${date}</td>
+                        <td>₹${purchase.final_amount.toFixed(2)}</td>
+                        <td><button class="btn btn-secondary" onclick="viewPurchaseDetails(${purchase.id})">View Details</button></td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+            document.getElementById('previousPurchases').style.display = 'block';
+        }
+
+        async function viewPurchaseDetails(purchaseId) {
+            try {
+                const response = await fetch(`${API_BASE}/purchases/${purchaseId}`);
+                if (response.ok) {
+                    const purchase = await response.json();
+                    displayPurchaseDetails(purchase);
+                }
+            } catch (error) {
+                console.error('Error loading purchase details:', error);
+            }
+        }
+
+        function displayPurchaseDetails(purchase) {
+            let itemsHtml = '';
+            purchase.purchase_items.forEach(item => {
+                itemsHtml += `
+                    <tr>
+                        <td>${item.product_id}</td>
+                        <td>₹${item.unit_price_snapshot.toFixed(2)}</td>
+                        <td>${item.quantity}</td>
+                        <td>₹${item.total_price.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            const html = `
+                <h3>Purchase Details - Invoice #${purchase.id}</h3>
+                <p><strong>Date:</strong> ${new Date(purchase.created_at).toLocaleString()}</p>
+                
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Product ID</th>
+                            <th>Unit Price</th>
+                            <th>Quantity</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+
+                <div class="totals">
+                    <p><strong>Total without tax:</strong> ₹${purchase.total_amount.toFixed(2)}</p>
+                    <p><strong>Tax:</strong> ₹${purchase.tax_amount.toFixed(2)}</p>
+                    <p><strong>Final Amount:</strong> ₹${purchase.final_amount.toFixed(2)}</p>
+                    <p><strong>Paid:</strong> ₹${purchase.paid_amount.toFixed(2)}</p>
+                    <p><strong>Change:</strong> ₹${purchase.balance_amount.toFixed(2)}</p>
+                </div>
+            `;
+
+            showResult(html, 'success');
+            
+            // Scroll to result section
+            document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // Setup denominations on load
