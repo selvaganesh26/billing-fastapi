@@ -65,10 +65,11 @@ python add_sample_products.py
    - Click "Add New" to add more products
    - Click "Remove" to delete a product row
 
-3. **Denominations** (Auto-setup)
-   - System automatically creates denominations with 100 count each
-   - Values: 500, 50, 20, 10, 5, 2, 1
-   - Modify counts if needed
+3. **Denominations** (Auto-loaded)
+   - System loads available denominations from database
+   - Default values: 500, 100, 50, 20, 10, 5, 2, 1
+   - Shows current available count for each denomination
+   - Modify counts if needed before generating bill
 
 4. **Enter Cash Paid**
    ```
@@ -120,19 +121,20 @@ Email invoices are sent automatically after bill generation.
 
 **To enable email sending:**
 
-1. Edit `app/services/email_service.py`
-2. Uncomment lines 30-33
-3. Add SMTP credentials:
+1. Edit `.env` file
+2. Add SMTP credentials:
 
-```python
-sender_email = "your-email@gmail.com"
-sender_password = "your-app-password"
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SENDER_EMAIL=your-email@gmail.com
+SENDER_PASSWORD=your-app-password
 ```
 
 **For Gmail:**
 - Enable 2-Factor Authentication
 - Generate App Password: https://myaccount.google.com/apppasswords
-- Use app password in code
+- Use app password in .env file
 
 **Email contains:**
 - Invoice number
@@ -145,31 +147,96 @@ sender_password = "your-app-password"
 
 ### Products
 ```
-POST   /api/v1/products          Create product
-GET    /api/v1/products          List all products
-GET    /api/v1/products/{id}     Get product by ID
-PUT    /api/v1/products/{id}     Update product
-DELETE /api/v1/products/{id}     Delete product
+POST   /api/v1/products              Create product
+GET    /api/v1/products              List all products (with pagination: ?skip=0&limit=100)
+GET    /api/v1/products/{id}         Get product by ID
+PUT    /api/v1/products/{id}         Update product
+DELETE /api/v1/products/{id}         Delete product
+```
+
+**Product Schema:**
+```json
+{
+  "name": "iPhone 15",
+  "stock": 10,
+  "price": 80000.0,
+  "tax_percent": 18.0
+}
 ```
 
 ### Denominations
 ```
-POST   /api/v1/denominations           Create denomination
-GET    /api/v1/denominations           List all denominations
-PUT    /api/v1/denominations/{value}   Update denomination count
+POST   /api/v1/denominations         Create denomination
+GET    /api/v1/denominations         List all denominations
+GET    /api/v1/denominations/{value} Get denomination by value
+PUT    /api/v1/denominations/{value} Update denomination count
+DELETE /api/v1/denominations/{value} Delete denomination
+```
+
+**Denomination Schema:**
+```json
+{
+  "value": 500,
+  "available_count": 100
+}
 ```
 
 ### Purchases (Billing)
 ```
-POST   /api/v1/purchases          Create purchase (Generate Bill)
-GET    /api/v1/purchases          List all purchases
-GET    /api/v1/purchases/{id}     Get purchase details
+POST   /api/v1/purchases             Create purchase (Generate Bill)
+GET    /api/v1/purchases             List all purchases (with pagination & filter: ?customer_email=test@example.com&skip=0&limit=100)
+GET    /api/v1/purchases/{id}        Get purchase details with items and change denominations
+```
+
+**Purchase Create Schema:**
+```json
+{
+  "customer_email": "customer@example.com",
+  "items": [
+    {"product_id": 1, "quantity": 2},
+    {"product_id": 2, "quantity": 1}
+  ],
+  "paid_amount": 150000.0,
+  "denominations": [
+    {"value": 500, "count": 100},
+    {"value": 100, "count": 100},
+    {"value": 50, "count": 100}
+  ]
+}
+```
+
+**Purchase Response Schema:**
+```json
+{
+  "id": 1,
+  "customer_id": 1,
+  "total_amount": 110000.0,
+  "tax_amount": 18000.0,
+  "final_amount": 128000.0,
+  "paid_amount": 150000.0,
+  "balance_amount": 22000.0,
+  "created_at": "2024-01-15T10:30:00",
+  "purchase_items": [
+    {
+      "id": 1,
+      "product_id": 1,
+      "quantity": 2,
+      "unit_price_snapshot": 80000.0,
+      "tax_percent_snapshot": 18.0,
+      "tax_amount": 14400.0,
+      "total_price": 94400.0
+    }
+  ],
+  "change_denominations": [
+    {"denomination_value": 500, "count_given": 44}
+  ]
+}
 ```
 
 ### UI Pages
 ```
-GET    /                          Billing page
-GET    /purchases                 Purchase history page
+GET    /                             Billing page (create new purchase)
+GET    /purchases                    Purchase history page (view all purchases)
 ```
 
 ## 📊 Database Schema
@@ -341,8 +408,9 @@ python add_sample_products.py
 ```
 
 **Email not sending:**
-- Configure SMTP credentials in `email_service.py`
+- Configure SMTP credentials in `.env` file
 - Check logs for error messages
+- Verify Gmail App Password is correct
 
 **Database errors:**
 - Check `.env` file for correct DATABASE_URL
@@ -351,11 +419,13 @@ python add_sample_products.py
 ## 📝 Notes
 
 - System uses SQLite by default (no setup needed)
-- Denominations auto-created with 100 count each
+- Denominations loaded from database (default: 500, 100, 50, 20, 10, 5, 2, 1)
 - Email sending is asynchronous (doesn't block)
 - Stock automatically updated on purchase
 - Price snapshots ensure historical accuracy
 - All operations wrapped in ACID transactions
+- Backend validates denomination total matches paid amount
+- Customer purchase history available on billing page
 
 ## 🚀 Deployment
 
@@ -367,8 +437,8 @@ For production deployment:
    ```
 
 2. **Configure Email**:
-   - Add SMTP credentials
-   - Use environment variables
+   - Add SMTP credentials to .env file
+   - Use environment variables for security
 
 3. **Run with Gunicorn**:
    ```bash
