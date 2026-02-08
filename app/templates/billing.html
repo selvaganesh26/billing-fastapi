@@ -126,19 +126,23 @@
             }
         }
 
-        async function setupDenominations() {
-            const denoms = [500, 100, 50, 20, 10, 5, 2, 1];
-            for (const value of denoms) {
-                try {
-                    await fetch(`${API_BASE}/denominations`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({value, available_count: 100})
-                    });
-                } catch (e) {}
-            }
+async function setupDenominations() {
+    try {
+        const response = await fetch(`${API_BASE}/denominations`);
+        if (response.ok) {
+            const denominations = await response.json();
+            denominations.forEach(denom => {
+                const input = document.getElementById(`denom${denom.value}`);
+                if (input) {
+                    input.setAttribute('placeholder', `Available: ${denom.available_count}`);
+                    input.setAttribute('title', `Available in shop: ${denom.available_count}`);
+                }
+            });
         }
-
+    } catch (error) {
+        console.error('Error loading denominations:', error);
+    }
+}
         async function generateBill() {
             const email = document.getElementById('customerEmail').value;
             const paidAmount = parseFloat(document.getElementById('paidAmount').value);
