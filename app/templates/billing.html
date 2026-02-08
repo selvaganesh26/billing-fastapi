@@ -14,6 +14,7 @@
         input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
         .bill-section { border: 2px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 4px; }
         .product-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; margin-bottom: 10px; }
+        .net-total { background: #f0f0f0; padding: 15px; margin: 15px 0; border-radius: 4px; text-align: right; font-size: 18px; font-weight: bold; }
         .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
         .btn-primary { background: #4CAF50; color: white; }
         .btn-secondary { background: #666; color: white; }
@@ -49,12 +50,16 @@
             <h3>Bill Section</h3>
             <div id="productRows">
                 <div class="product-row">
-                    <input type="number" placeholder="Product ID" class="product-id" min="1">
-                    <input type="number" placeholder="Quantity" class="quantity" min="1">
+                    <input type="number" placeholder="Product ID" class="product-id" min="1" onchange="calculateNetTotal()">
+                    <input type="number" placeholder="Quantity" class="quantity" min="1" onchange="calculateNetTotal()">
                     <button class="btn btn-danger" onclick="removeRow(this)">Remove</button>
                 </div>
             </div>
             <button class="btn btn-secondary" onclick="addProductRow()" style="margin-top: 10px;">Add New</button>
+        </div>
+
+        <div class="net-total" id="netTotal" style="display: none; background: #ffebee; color: #c62828; border: 2px solid #c62828;">
+            Net Total: ₹<span id="netTotalAmount">0.00</span>
         </div>
 
         <div class="separator"></div>
@@ -63,6 +68,7 @@
             <h3>Denominations</h3>
             <div class="denominations">
                 <div class="denom-item"><label>500:</label><input type="number" id="denom500" value="0" min="0"></div>
+                <div class="denom-item"><label>100:</label><input type="number" id="denom100" value="0" min="0"></div>
                 <div class="denom-item"><label>50:</label><input type="number" id="denom50" value="0" min="0"></div>
                 <div class="denom-item"><label>20:</label><input type="number" id="denom20" value="0" min="0"></div>
                 <div class="denom-item"><label>10:</label><input type="number" id="denom10" value="0" min="0"></div>
@@ -97,8 +103,8 @@
             const row = document.createElement('div');
             row.className = 'product-row';
             row.innerHTML = `
-                <input type="number" placeholder="Product ID" class="product-id" min="1">
-                <input type="number" placeholder="Quantity" class="quantity" min="1">
+                <input type="number" placeholder="Product ID" class="product-id" min="1" onchange="calculateNetTotal()">
+                <input type="number" placeholder="Quantity" class="quantity" min="1" onchange="calculateNetTotal()">
                 <button class="btn btn-danger" onclick="removeRow(this)">Remove</button>
             `;
             container.appendChild(row);
@@ -108,13 +114,14 @@
             const rows = document.querySelectorAll('.product-row');
             if (rows.length > 1) {
                 btn.parentElement.remove();
+                calculateNetTotal();
             } else {
                 alert('At least one product row is required');
             }
         }
 
         async function setupDenominations() {
-            const denoms = [500, 50, 20, 10, 5, 2, 1];
+            const denoms = [500, 100, 50, 20, 10, 5, 2, 1];
             for (const value of denoms) {
                 try {
                     await fetch(`${API_BASE}/denominations`, {
@@ -135,21 +142,17 @@
                 return;
             }
 
-            // Calculate denomination total
-            const denomTotal = 
-                parseInt(document.getElementById('denom500').value || 0) * 500 +
-                parseInt(document.getElementById('denom50').value || 0) * 50 +
-                parseInt(document.getElementById('denom20').value || 0) * 20 +
-                parseInt(document.getElementById('denom10').value || 0) * 10 +
-                parseInt(document.getElementById('denom5').value || 0) * 5 +
-                parseInt(document.getElementById('denom2').value || 0) * 2 +
-                parseInt(document.getElementById('denom1').value || 0) * 1;
-
-            // Validate denomination total matches cash paid
-            if (denomTotal !== paidAmount) {
-                showResult(`Denomination total (₹${denomTotal}) must match Cash Paid (₹${paidAmount})`, 'error');
-                return;
-            }
+            // Collect denominations
+            const denominations = [
+                {value: 500, count: parseInt(document.getElementById('denom500').value || 0)},
+                {value: 100, count: parseInt(document.getElementById('denom100').value || 0)},
+                {value: 50, count: parseInt(document.getElementById('denom50').value || 0)},
+                {value: 20, count: parseInt(document.getElementById('denom20').value || 0)},
+                {value: 10, count: parseInt(document.getElementById('denom10').value || 0)},
+                {value: 5, count: parseInt(document.getElementById('denom5').value || 0)},
+                {value: 2, count: parseInt(document.getElementById('denom2').value || 0)},
+                {value: 1, count: parseInt(document.getElementById('denom1').value || 0)}
+            ].filter(d => d.count > 0);
 
             const rows = document.querySelectorAll('.product-row');
             const items = [];
@@ -174,7 +177,8 @@
                     body: JSON.stringify({
                         customer_email: email,
                         items,
-                        paid_amount: paidAmount
+                        paid_amount: paidAmount,
+                        denominations
                     })
                 });
 
@@ -263,6 +267,38 @@
             document.getElementById('paidAmount').value = '';
             document.querySelectorAll('.product-id, .quantity').forEach(input => input.value = '');
             document.getElementById('result').style.display = 'none';
+            document.getElementById('netTotal').style.display = 'none';
+        }
+
+        async function calculateNetTotal() {
+            const rows = document.querySelectorAll('.product-row');
+            let total = 0;
+            let hasProducts = false;
+            
+            for (const row of rows) {
+                const productId = parseInt(row.querySelector('.product-id').value);
+                const quantity = parseInt(row.querySelector('.quantity').value);
+                
+                if (productId && quantity) {
+                    hasProducts = true;
+                    try {
+                        const response = await fetch(`${API_BASE}/products/${productId}`);
+                        if (response.ok) {
+                            const product = await response.json();
+                            const itemTotal = product.price * quantity;
+                            const itemTax = itemTotal * (product.tax_percent / 100);
+                            total += itemTotal + itemTax;
+                        }
+                    } catch (e) {}
+                }
+            }
+            
+            if (hasProducts && total > 0) {
+                document.getElementById('netTotalAmount').textContent = total.toFixed(2);
+                document.getElementById('netTotal').style.display = 'block';
+            } else {
+                document.getElementById('netTotal').style.display = 'none';
+            }
         }
 
         // Setup denominations on load

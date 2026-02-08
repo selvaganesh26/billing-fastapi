@@ -85,11 +85,18 @@ class PurchaseItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Denomination Input for Purchase
+class DenominationInput(BaseModel):
+    value: int = Field(..., gt=0)
+    count: int = Field(..., ge=0)
+
+
 # Purchase Schemas
 class PurchaseCreate(BaseModel):
     customer_email: EmailStr
     items: List[PurchaseItemInput] = Field(..., min_length=1)
     paid_amount: float = Field(..., gt=0)
+    denominations: List[DenominationInput] = Field(..., min_length=1)
 
 
 class PurchaseDenominationResponse(BaseModel):

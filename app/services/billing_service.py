@@ -40,32 +40,36 @@ class BillingService:
         Create a complete purchase with full transaction management.
         
         Transaction Flow:
-        1. Get or create customer
-        2. Validate products and stock
-        3. Calculate totals
-        4. Create purchase record
-        5. Create purchase items with snapshots
-        6. Update product stock
-        7. Handle change denominations
-        8. Commit or rollback
+        1. Validate denominations match paid amount
+        2. Get or create customer
+        3. Validate products and stock
+        4. Calculate totals
+        5. Create purchase record
+        6. Create purchase items with snapshots
+        7. Update product stock
+        8. Handle change denominations
+        9. Commit or rollback
         """
         try:
-            # Step 1: Get or create customer
+            # Step 1: Validate denominations
+            self._validate_denominations(purchase_data.denominations, purchase_data.paid_amount)
+            
+            # Step 2: Get or create customer
             customer = self._get_or_create_customer(purchase_data.customer_email)
             
-            # Step 2: Validate products and stock
+            # Step 3: Validate products and stock
             products_data = self._validate_and_fetch_products(purchase_data.items)
             
-            # Step 3: Calculate totals
+            # Step 4: Calculate totals
             calculations = self._calculate_purchase_totals(products_data)
             
-            # Step 4: Validate payment
+            # Step 5: Validate payment
             if purchase_data.paid_amount < calculations['final_amount']:
                 raise InvalidPaymentException(
                     f"Insufficient payment. Required: {calculations['final_amount']}, Paid: {purchase_data.paid_amount}"
                 )
             
-            # Step 5: Create purchase record
+            # Step 6: Create purchase record
             purchase = Purchase(
                 customer_id=customer.id,
                 total_amount=calculations['total_amount'],
@@ -77,13 +81,13 @@ class BillingService:
             self.db.add(purchase)
             self.db.flush()  # Get purchase.id without committing
             
-            # Step 6: Create purchase items with price snapshots
+            # Step 7: Create purchase items with price snapshots
             self._create_purchase_items(purchase.id, products_data)
             
-            # Step 7: Update product stock (CRITICAL - inventory management)
+            # Step 8: Update product stock (CRITICAL - inventory management)
             self._update_product_stock(products_data)
             
-            # Step 8: Handle change denominations
+            # Step 9: Handle change denominations
             change_amount = purchase_data.paid_amount - calculations['final_amount']
             if change_amount > 0:
                 self._handle_change_denominations(purchase.id, change_amount)
@@ -92,7 +96,7 @@ class BillingService:
             self.db.commit()
             self.db.refresh(purchase)
             
-            # Step 9: Send email asynchronously (non-blocking)
+            # Step 10: Send email asynchronously (non-blocking)
             executor.submit(self._send_invoice_email, customer.email, purchase)
             
             logger.info(f"Purchase {purchase.id} created successfully for customer {customer.email}")
@@ -111,6 +115,14 @@ class BillingService:
             self.db.rollback()
             logger.error(f"Unexpected error during purchase creation: {str(e)}")
             raise
+    
+    def _validate_denominations(self, denominations: List, paid_amount: float):
+        """Validate that denomination total matches paid amount"""
+        denom_total = sum(d.value * d.count for d in denominations)
+        if denom_total != paid_amount:
+            raise InvalidPaymentException(
+                f"Denomination total (₹{denom_total}) must match Cash Paid (₹{paid_amount})"
+            )
     
     def _get_or_create_customer(self, email: str) -> Customer:
         """Get existing customer or create new one"""
